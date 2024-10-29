@@ -1,6 +1,6 @@
 {
   "name": "@sgftech/payment-razorpay",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "razorpay payment provider for Medusa v2",
   "main": "dist/index.js",
   "repository": {
@@ -45,7 +45,7 @@
     "eslint-plugin-jsx-a11y": "^6.4.1",
     "eslint-plugin-prettier": "^4.2.1",
     "eslint-plugin-react": "^7.22.0",
-    "eslint-plugin-react-hooks": "^4.6.2",  
+    "eslint-plugin-react-hooks": "^4.6.2",
     "ts-jest": "^27.0.7",
     "ts-loader": "^9.2.6",
     "ts-node": "^10.9.2",
@@ -59,7 +59,7 @@
     "@medusajs/medusa": "latest"
   },
   "dependencies": {
-   "razorpay": "^2.9.5"
+    "razorpay": "^2.9.5"
   },
   "gitHead": "81a7ff73d012fda722f6e9ef0bd9ba0232d37808",
   "keywords": [
