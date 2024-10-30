@@ -2,7 +2,6 @@ import {
     createWorkflow,
     WorkflowResponse,
   } from "@medusajs/framework/workflows-sdk";
-  import { UpdateCustomersWorkflowInput } from "@medusajs/medusa/core-flows";
   
   import { updateCustomerMetadataStep } from "./steps/update-customer";
   

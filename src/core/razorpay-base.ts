@@ -19,7 +19,6 @@ import {
   isDefined,
   isPaymentProviderError,
   MedusaError,
-  Modules,
   PaymentActions,
   PaymentSessionStatus,
 } from "@medusajs/framework/utils"
@@ -35,7 +34,6 @@ import { Customers } from "razorpay/dist/types/customers";
 import { Orders } from "razorpay/dist/types/orders";
 import { Payments } from "razorpay/dist/types/payments";
 import { Refunds } from "razorpay/dist/types/refunds";
-import {CustomerModuleService} from "@medusajs/customer/dist/services"
 import { updateRazorpayCustomerMetadataWorkflow } from "../workflows/update-razorpay-customer-metadata";
 import { updateCustomersWorkflow } from "@medusajs/medusa/core-flows";
 /**
