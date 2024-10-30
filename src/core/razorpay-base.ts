@@ -36,6 +36,8 @@ import { Orders } from "razorpay/dist/types/orders";
 import { Payments } from "razorpay/dist/types/payments";
 import { Refunds } from "razorpay/dist/types/refunds";
 import {CustomerModuleService} from "@medusajs/customer/dist/services"
+import { updateRazorpayCustomerMetadataWorkflow } from "../workflows/update-razorpay-customer-metadata";
+import { updateCustomersWorkflow } from "@medusajs/medusa/core-flows";
 /**
  * The paymentIntent object corresponds to a razorpay order.
  *
@@ -48,7 +50,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
   protected razorpay_: Razorpay;
   logger: Logger;
   container_: any;
-  customerModuleService: CustomerModuleService;
+
   // customerModuleService: CustomerModuleService;
   // cartService: CartModuleService;
 
@@ -57,7 +59,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
     this.options_ = options;
     this.logger = container.logger as Logger;
-    this.customerModuleService = container.resolve(Modules.CUSTOMER)
+  
     // this.cartService = container.cartService;
     // this.customerModuleService = container.customerModuleService as customerModuleService;
    
@@ -176,7 +178,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     }
   }
 
-  async updateRazorpayMetadatainCustomer(
+  async updateRazorpayMetadataInCustomer(
     customer: CustomerDTO,
     parameterName: string,
     parameterValue: string
@@ -191,19 +193,33 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     }
     let result: CustomerDTO;
     if (metadata) {
-      result = await this.customerModuleService.updateCustomers(customer.id, {
-        metadata: {
-          ...metadata,
-          razorpay,
-        },
+      const x = await updateRazorpayCustomerMetadataWorkflow(this.container_).run({
+        input: {
+           medusa_customer_id:customer.id,
+           razorpay,
+        }
       });
-    } else {
-      result = await this.customerModuleService.updateCustomers(customer.id, {
-        metadata: {
-          razorpay,
-        },
-      });
+      result = x.result.customer
     }
+ 
+      // result = await this.customerModuleService.updateCustomers(customer.id, {
+      //   metadata: {
+      //     ...metadata,
+      //     razorpay,
+      //   },
+      // });
+    else {
+       const x = await updateCustomersWorkflow(this.container_).run({
+        input:{selector: {id:customer.id},
+        update:{
+          metadata:{razorpay}
+        }
+        
+        }
+      })
+      result = x.result[0]
+    }
+    
     return result;
   }
   // @Todo refactor this function to 3 simple functions to make it more readable
@@ -304,7 +320,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
       intentRequest.notes!.razorpay_id = razorpayCustomer?.id;
       if (customer && customer.id) {
-        await this.updateRazorpayMetadatainCustomer(
+        await this.updateRazorpayMetadataInCustomer(
           customer,
           "rp_customer_id",
           razorpayCustomer.id
@@ -338,7 +354,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
           (c) => c.contact == customer?.phone || c.email == customer.email
         ) ?? customerList?.[0];
       if (razorpayCustomer) {
-        await this.updateRazorpayMetadatainCustomer(
+        await this.updateRazorpayMetadataInCustomer(
           customer,
           "rp_customer_id",
           razorpayCustomer.id
@@ -386,7 +402,6 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     try {
       
       const razorpay_id =
-        customer.metadata?.razorpay_id ||
         (customer.metadata as any)?.razorpay?.rp_customer_id ||
         intentRequest.notes.razorpay_id;
       try {
@@ -654,11 +669,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     let razorpayId:string;
     if (customer) {
       try {
-        refreshedCustomer = await this.customerModuleService.retrieveCustomer(customer?.id!, {
-          relations: ["addresses"],
-        });
+        refreshedCustomer = input.context.customer as CustomerDTO
         razorpayId =
-          refreshedCustomer?.metadata?.razorpay_id ||
           (refreshedCustomer?.metadata as any)?.razorpay?.rp_customer_id;
         customerPhone =
           refreshedCustomer?.phone ?? billing_address?.phone ?? "";
