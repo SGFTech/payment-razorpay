@@ -1,3 +1,1 @@
-
-export { default as RazorpayProviderService } from "./razorpay-provider"
-
+export { default as RazorpayProviderService } from "./razorpay-provider";

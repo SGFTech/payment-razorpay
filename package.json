@@ -1,6 +1,6 @@
 {
   "name": "@sgftech/payment-razorpay",
-  "version": "2.0.4",
+  "version": "2.0.4-next-2",
   "description": "razorpay payment provider for Medusa v2",
   "main": "dist/index.js",
   "repository": {
@@ -22,7 +22,8 @@
   "scripts": {
     "test": "jest --passWithNoTests src",
     "build": "rimraf dist && tsc --build ./tsconfig.json",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "lint":"eslint --fix"
   },
   "devDependencies": {
     "@medusajs/framework": "^2.0.1",
@@ -36,6 +37,7 @@
     "@medusajs/medusa": "latest",
     "@typescript-eslint/eslint-plugin": "^5.4.0",
     "@typescript-eslint/parser": "^5.4.0",
+    "eslint": "^8.3.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-google": "^0.14.0",
     "eslint-config-prettier": "^8.5.0",

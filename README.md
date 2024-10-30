@@ -101,7 +101,7 @@ import Spinner from "@modules/common/icons/spinner"
 import React, { useCallback, useState } from "react"
 import  {useRazorpay, RazorpayOrderOptions } from "react-razorpay"
 import { HttpTypes } from "@medusajs/types"
-import { placeOrder } from "@lib/data/cart"
+import { cancelOrder, placeOrder } from "@lib/data/cart"
 import { CurrencyCode } from "react-razorpay/dist/constants/currency"
 export const RazorpayPaymentButton = ({
   session,
@@ -126,16 +126,24 @@ export const RazorpayPaymentButton = ({
     })
   }
 
+  const onPaymentCancelled = async () => {
+    await cancelOrder(session.provider_id).catch(() => {
+      setErrorMessage("PaymentCancelled")
+      setSubmitting(false)
+    })
+  }
+
 
   const handlePayment = useCallback(() => {
     const options: RazorpayOrderOptions = {
       callback_url: `${process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL}/razorpay/hooks`,
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY ?? '',
-      amount: session.amount,
+      amount: session.amount*100,
       order_id: orderData.id,
       currency: cart.currency_code.toUpperCase() as CurrencyCode,
       name: process.env.COMPANY_NAME ?? "your company name ",
       description: `Order number ${orderData.id}`,
+      remember_customer:true,
 
       image: "https://example.com/your_logo",
       modal: {
@@ -143,8 +151,10 @@ export const RazorpayPaymentButton = ({
         escape: true,
         handleback: true,
         confirm_close: true,
-        ondismiss: () => {
+        ondismiss: async () => {
           setSubmitting(false)
+          setErrorMessage(`payment cancelled`)
+          await onPaymentCancelled()
         },
         animation: true,
       },
@@ -176,8 +186,11 @@ export const RazorpayPaymentButton = ({
   return (
     <>
       <Button
-        disabled={submitting || notReady}
-        onClick={handlePayment}
+        disabled={submitting || notReady ||!orderData.id}
+        onClick={()=>{
+          console.log(`processing order id: ${orderData.id}`)
+          handlePayment()}
+        }
       >
         {submitting ? <Spinner /> : "Checkout"}
       </Button>
@@ -225,13 +238,34 @@ case "razorpay":
          return <RazorpayPaymentButton session={paymentSession} notReady={notReady} cart={cart} />
 ```
 
-Step 4. Add environment variables in the client
+
+Step 4. modify initiatePaymentSession in the client storefront/src/modules/checkout/components/payment/index.tsx
+```
+
+.....
+ try {
+      const shouldInputCard =
+        isStripeFunc(selectedPaymentMethod) && !activeSession
+
+      if (!activeSession) {
+        await initiatePaymentSession(cart, {
+          provider_id: selectedPaymentMethod,
+          context:{
+            extra:cart
+          }
+        })
+      }
+ }
+ ....
+```
+
+Step 5. Add environment variables in the client
 
   NEXT_PUBLIC_RAZORPAY_KEY:<your razorpay key>
   NEXT_PUBLIC_SHOP_NAME:<your razorpay shop name>
   NEXT_PUBLIC_SHOP_DESCRIPTION: <your razorpayshop description>
 #### watch out
-Step 5. Caveat 
+Step 6. Caveat 
 the default starter template has an option which says use the same shipping and billing address
 please ensure you deselect this and enter the phone number manually in the billing section.
 
