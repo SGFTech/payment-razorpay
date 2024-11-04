@@ -993,10 +993,13 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     ): Promise<WebhookActionResult> {
         const webhookSignature = webhookData.headers["x-razorpay-signature"];
 
-        const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+        const webhookSecret =
+            this.options_?.webhook_secret ||
+            process.env.RAZORPAY_WEBHOOK_SECRET ||
+            process.env.RAZORPAY_TEST_WEBHOOK_SECRET;
 
         const logger = this.logger;
-        let data;
+        const data = webhookData.data;
 
         logger.info(
             `Received Razorpay webhook body as object : ${JSON.stringify(

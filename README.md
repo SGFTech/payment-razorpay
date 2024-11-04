@@ -69,7 +69,7 @@ modules: [
               manual_expiry_period: 20,
               refund_speed: "normal",
               webhook_secret:
-                  process?.env?.RAZORPAY_TEST_HOOK_SECRET ??
+                  process?.env?.RAZORPAY_TEST_WEBHOOK_SECRET ??
                   process?.env?.RAZORPAY_WEBHOOK_SECRET
           }
           },
@@ -284,6 +284,11 @@ Step 6. Caveat
 the default starter template has an option which says use the same shipping and billing address
 please ensure you deselect this and enter the phone number manually in the billing section.
 
+Step 7.
+
+In razorpay create a webhook with the following url 
+
+<your host>/hooks/payment/razorpay_razorpay
 
 ## Contributing
 
