@@ -98,10 +98,10 @@ like below
 ````
 import { Button } from "@medusajs/ui"
 import Spinner from "@modules/common/icons/spinner"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import  {useRazorpay, RazorpayOrderOptions } from "react-razorpay"
 import { HttpTypes } from "@medusajs/types"
-import { cancelOrder, placeOrder } from "@lib/data/cart"
+import { cancelOrder, placeOrder, waitForPaymentCompletion } from "@lib/data/cart"
 import { CurrencyCode } from "react-razorpay/dist/constants/currency"
 export const RazorpayPaymentButton = ({
   session,
@@ -117,24 +117,31 @@ export const RazorpayPaymentButton = ({
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
   const {Razorpay
    } = useRazorpay();
+  
+  const [orderData,setOrderData] = useState({id:""})
 
-  const orderData = session.data as Record<string, string>
+  
+  console.log(`session_data: `+JSON.stringify(session))
   const onPaymentCompleted = async () => {
     await placeOrder().catch(() => {
       setErrorMessage("An error occurred, please try again.")
       setSubmitting(false)
     })
   }
+  useEffect(()=>{
+    setOrderData(session.data as {id:string})
+  },[session.data])
 
-  const onPaymentCancelled = async () => {
-    await cancelOrder(session.provider_id).catch(() => {
-      setErrorMessage("PaymentCancelled")
-      setSubmitting(false)
-    })
-  }
+  
 
 
-  const handlePayment = useCallback(() => {
+  const handlePayment = useCallback(async() => {
+    const onPaymentCancelled = async () => {
+      await cancelOrder(session.provider_id).catch(() => {
+        setErrorMessage("PaymentCancelled")
+        setSubmitting(false)
+      })
+    }
     const options: RazorpayOrderOptions = {
       callback_url: `${process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL}/razorpay/hooks`,
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY ?? '',
@@ -144,6 +151,7 @@ export const RazorpayPaymentButton = ({
       name: process.env.COMPANY_NAME ?? "your company name ",
       description: `Order number ${orderData.id}`,
       remember_customer:true,
+      
 
       image: "https://example.com/your_logo",
       modal: {
@@ -169,24 +177,31 @@ export const RazorpayPaymentButton = ({
       
       
     };
-
+    //await waitForPaymentCompletion();
+    
+    
     const razorpay = new Razorpay(options);
+    if(orderData.id)
     razorpay.open();
     razorpay.on("payment.failed", function (response: any) {
       setErrorMessage(JSON.stringify(response.error))
+   
     })
-    // razorpay.on("payment.authorized", function (response: any) {
-
-    // })
+   razorpay.on("payment.authorized" as any, function (response: any) {
+    const authorizedCart = placeOrder().then(authorizedCart=>{
+    JSON.stringify(`authorized:`+ authorizedCart)
+    })
+    })
     // razorpay.on("payment.captured", function (response: any) {
 
     // }
     // )
-  }, [Razorpay]);
+  }, [Razorpay, cart.billing_address?.first_name, cart.billing_address?.last_name, cart.currency_code, cart?.email, cart?.shipping_address?.phone, orderData.id, session.amount, session.provider_id]);
+  console.log("orderData"+JSON.stringify(orderData))
   return (
     <>
       <Button
-        disabled={submitting || notReady ||!orderData.id}
+        disabled={submitting || notReady || !orderData?.id||orderData.id == ''}
         onClick={()=>{
           console.log(`processing order id: ${orderData.id}`)
           handlePayment()}

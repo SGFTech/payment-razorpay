@@ -17,13 +17,14 @@ export const updateCustomerMetadataStep = createStep(
 
         // 2. create auth identity
         const { medusa_customer_id, ...rest } = input;
+        const { razorpay } = rest as Record<string, string>;
         const registerResponse = await customerService.updateCustomers(
             medusa_customer_id,
             {
                 metadata: {
                     ...customer.metadata,
                     razorpay: {
-                        ...rest
+                        ...(razorpay as unknown as Record<string, string>)
                     }
                 }
             }

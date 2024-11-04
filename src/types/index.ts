@@ -42,3 +42,41 @@ export const ErrorIntentStatus = {
 export const PaymentProviderKeys = {
     RAZORPAY: "razorpay"
 };
+
+export interface RazorpayProviderConfig {
+    providers: Provider[];
+    database: Database;
+}
+
+export interface Provider {
+    resolve: string;
+    id: string;
+    options: Options;
+}
+
+export interface Options {
+    key_id: string;
+    key_secret: string;
+    razorpay_account: string;
+    automatic_expiry_period: number;
+    manual_expiry_period: number;
+    refund_speed: "normal" | "optimum";
+    webhook_secret: string;
+    auto_capture: boolean;
+}
+
+export interface Database {
+    clientUrl: string;
+    schema: string;
+    driverOptions: DriverOptions;
+    debug: boolean;
+    connection: string;
+}
+
+export interface DriverOptions {
+    connection: Connection;
+}
+
+export interface Connection {
+    ssl: boolean;
+}

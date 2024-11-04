@@ -1,6 +1,6 @@
 {
   "name": "@sgftech/payment-razorpay",
-  "version": "2.0.4-next-2",
+  "version": "2.0.4-next-12",
   "description": "razorpay payment provider for Medusa v2",
   "main": "dist/index.js",
   "repository": {

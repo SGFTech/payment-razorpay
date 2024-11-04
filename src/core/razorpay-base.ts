@@ -1,13 +1,13 @@
 import { Logger } from "@medusajs/medusa";
-import { RazorpayOptions } from "../types";
+import { Options, RazorpayOptions, RazorpayProviderConfig } from "../types";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { EOL } from "os";
 
 import {
-    CartWorkflow,
     CreatePaymentProviderSession,
     CustomerDTO,
+    HttpTypes,
     PaymentProviderError,
     PaymentProviderSessionResponse,
     ProviderWebhookPayload,
@@ -17,10 +17,11 @@ import {
 } from "@medusajs/framework/types";
 import {
     AbstractPaymentProvider,
-    CartWorkflowEvents,
     isDefined,
     isPaymentProviderError,
     MedusaError,
+    MedusaErrorCodes,
+    MedusaErrorTypes,
     PaymentActions,
     PaymentSessionStatus
 } from "@medusajs/framework/utils";
@@ -31,22 +32,16 @@ import { Orders } from "razorpay/dist/types/orders";
 import { Payments } from "razorpay/dist/types/payments";
 import { Refunds } from "razorpay/dist/types/refunds";
 import { updateRazorpayCustomerMetadataWorkflow } from "../workflows/update-razorpay-customer-metadata";
-import {
-    createCartWorkflow,
-    updateCustomersWorkflow
-} from "@medusajs/medusa/core-flows";
-import CartModule from "@medusajs/medusa/cart";
-import { refetchCart } from "@medusajs/medusa/api/store/carts/helpers";
-import { refetchCustomer } from "@medusajs/medusa/api/store/customers/helpers";
+
 /**
  * The paymentIntent object corresponds to a razorpay order.
  *
  */
 
 abstract class RazorpayBase extends AbstractPaymentProvider {
-    static identifier = "";
+    static identifier = "razorpay";
 
-    protected readonly options_: RazorpayOptions;
+    protected readonly options_: RazorpayProviderConfig & Options;
     protected razorpay_: Razorpay;
     logger: Logger;
     container_: any;
@@ -82,15 +77,28 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     }
 
     protected init(): void {
+        const provider = this.options_.providers?.find(
+            (p) => p.id == RazorpayBase.identifier
+        );
+        if (!provider && !this.options_.key_id) {
+            throw new MedusaError(
+                MedusaErrorTypes.INVALID_ARGUMENT,
+                "razorpay not configured",
+                MedusaErrorCodes.CART_INCOMPATIBLE_STATE
+            );
+        }
         this.razorpay_ =
             this.razorpay_ ||
             new Razorpay({
-                key_id: this.options_.key_id,
-                key_secret: this.options_.key_secret,
+                key_id: this.options_.key_id ?? provider?.options.key_id,
+                key_secret:
+                    this.options_.key_secret ?? provider?.options.key_secret,
                 headers: {
                     "Content-Type": "application/json",
                     "X-Razorpay-Account":
-                        this.options_.razorpay_account ?? undefined
+                        this.options_.razorpay_account ??
+                        provider?.options.razorpay_account ??
+                        undefined
                 }
             });
     }
@@ -123,21 +131,50 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         razorpay_signature: string
     ): boolean {
         const body = razorpay_order_id + "|" + razorpay_payment_id;
+        const provider = this.options_.providers?.find(
+            (p) => p.id == RazorpayBase.identifier
+        );
+
+        if (!provider && !this.options_.key_id) {
+            throw new MedusaError(
+                MedusaErrorTypes.INVALID_ARGUMENT,
+                "razorpay not configured",
+                MedusaErrorCodes.CART_INCOMPATIBLE_STATE
+            );
+        }
         const expectedSignature = crypto
-            .createHmac("sha256", this.options_.key_secret as string)
+            .createHmac(
+                "sha256",
+                this.options_.key_secret ??
+                    (provider!.options.key_secret as string)
+            )
             .update(body.toString())
             .digest("hex");
         return expectedSignature === razorpay_signature;
     }
 
     async getRazorpayPaymentStatus(
-        paymentIntent: Orders.RazorpayOrder
+        paymentIntent: Orders.RazorpayOrder,
+        attempts: {
+            entity: string;
+            count: number;
+            items: Array<Payments.RazorpayPayment>;
+        }
     ): Promise<PaymentSessionStatus> {
         if (!paymentIntent) {
             return PaymentSessionStatus.ERROR;
-        }
-        return PaymentSessionStatus.AUTHORIZED;
-        /*
+        } else {
+            const authorisedAttempts = attempts.items.filter(
+                (i) => i.status == PaymentSessionStatus.AUTHORIZED
+            );
+            const totalAuthorised = authorisedAttempts.reduce((p, c) => {
+                p += parseInt(`${c.amount}`);
+                return p;
+            }, 0);
+            return totalAuthorised == paymentIntent.amount
+                ? PaymentSessionStatus.AUTHORIZED
+                : PaymentSessionStatus.REQUIRES_MORE;
+        } /*
     if (paymentIntent.amount_due != 0) {
       return PaymentSessionStatus.REQUIRES_MORE;
     }
@@ -158,13 +195,22 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         const id = paymentSessionData.id as string;
         const orderId = paymentSessionData.order_id as string;
         let paymentIntent: Orders.RazorpayOrder;
+        let paymentsAttempted: {
+            entity: string;
+            count: number;
+            items: Array<Payments.RazorpayPayment>;
+        };
         try {
             paymentIntent = await this.razorpay_.orders.fetch(id);
+            paymentsAttempted = await this.razorpay_.orders.fetchPayments(id);
         } catch (e) {
             this.logger.warn(
                 "received payment data from session not order data"
             );
             paymentIntent = await this.razorpay_.orders.fetch(orderId);
+            paymentsAttempted = await this.razorpay_.orders.fetchPayments(
+                orderId
+            );
         }
 
         switch (paymentIntent.status) {
@@ -176,7 +222,10 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return PaymentSessionStatus.AUTHORIZED;
 
             case "attempted":
-                return await this.getRazorpayPaymentStatus(paymentIntent);
+                return await this.getRazorpayPaymentStatus(
+                    paymentIntent,
+                    paymentsAttempted
+                );
 
             default:
                 return PaymentSessionStatus.PENDING;
@@ -196,18 +245,16 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             razorpay = {};
             razorpay[parameterName] = parameterValue;
         }
-        let result: CustomerDTO;
-        if (metadata) {
-            const x = await updateRazorpayCustomerMetadataWorkflow(
-                this.container_
-            ).run({
-                input: {
-                    medusa_customer_id: customer.id,
-                    razorpay
-                }
-            });
-            result = x.result.customer;
-        }
+        //
+        const x = await updateRazorpayCustomerMetadataWorkflow(
+            this.container_
+        ).run({
+            input: {
+                medusa_customer_id: customer.id,
+                razorpay
+            }
+        });
+        const result = x.result.customer;
 
         // result = await this.customerModuleService.updateCustomers(customer.id, {
         //   metadata: {
@@ -215,17 +262,17 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         //     razorpay,
         //   },
         // });
-        else {
-            const x = await updateCustomersWorkflow(this.container_).run({
-                input: {
-                    selector: { id: customer.id },
-                    update: {
-                        metadata: { razorpay }
-                    }
-                }
-            });
-            result = x.result[0];
-        }
+        // ?else {
+        //     const x = await updateCustomersWorkflow(this.container_).run({
+        //         input: {
+        //             selector: { id: customer.id },
+        //             update: {
+        //                 metadata: { razorpay }
+        //             }
+        //         }
+        //     });
+        //     result = x.result[0];
+        // }
 
         return result;
     }
@@ -236,7 +283,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
     async editExistingRpCustomer(
         customer: CustomerDTO,
-        intentRequest
+        intentRequest,
+        extra: HttpTypes.StoreCart
     ): Promise<Customers.RazorpayCustomer | undefined> {
         let razorpayCustomer: Customers.RazorpayCustomer | undefined;
 
@@ -281,7 +329,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 razorpayCustomer = await this.createRazorpayCustomer(
                     customer,
 
-                    intentRequest
+                    intentRequest,
+                    extra
                 );
             } catch (e) {
                 this.logger.error(
@@ -294,12 +343,15 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
     async createRazorpayCustomer(
         customer: CustomerDTO,
-        intentRequest
+        intentRequest,
+        extra: HttpTypes.StoreCart
     ): Promise<Customers.RazorpayCustomer | undefined> {
         let razorpayCustomer: Customers.RazorpayCustomer;
         const phone =
             customer.phone ??
+            extra.billing_address?.phone ??
             customer?.addresses.find((v) => v.phone != undefined)?.phone;
+
         const gstin = (customer?.metadata?.gstin as string) ?? undefined;
         if (!phone) {
             throw new Error("phone number to create razorpay customer");
@@ -395,6 +447,10 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 );
             } else {
                 razorpayCustomer = await this.pollAndRetrieveCustomer(customer);
+
+                this.logger.debug(
+                    `updated customer ${razorpayCustomer.email} with RpId :${razorpayCustomer.id}`
+                );
             }
             return razorpayCustomer;
         } catch (e) {
@@ -407,7 +463,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
     async createOrUpdateCustomer(
         intentRequest,
-        customer: CustomerDTO
+        customer: CustomerDTO,
+        extra: HttpTypes.StoreCart
     ): Promise<Customers.RazorpayCustomer | undefined> {
         let razorpayCustomer: Customers.RazorpayCustomer | undefined;
         try {
@@ -422,7 +479,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
                     razorpayCustomer = await this.editExistingRpCustomer(
                         customer,
-                        intentRequest
+                        intentRequest,
+                        extra
                     );
                 }
             } catch (e) {
@@ -434,11 +492,14 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
                     razorpayCustomer = await this.createRazorpayCustomer(
                         customer,
-                        intentRequest
+                        intentRequest,
+                        extra
                     );
                 }
             } catch (e) {
                 // if customer already exists in razorpay but isn't associated with a customer in medsusa
+            }
+            if (!razorpayCustomer) {
                 try {
                     this.logger.info(
                         "relinking  customer  in razorpay by polling"
@@ -474,6 +535,17 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 MedusaError.Codes.CART_INCOMPATIBLE_STATE
             );
         }
+        const provider = this.options_.providers?.find(
+            (p) => p.id == RazorpayBase.identifier
+        );
+
+        if (!provider && !this.options_.key_id) {
+            throw new MedusaError(
+                MedusaErrorTypes.INVALID_ARGUMENT,
+                "razorpay not configured",
+                MedusaErrorCodes.CART_INCOMPATIBLE_STATE
+            );
+        }
         const sessionNotes = extra?.notes ?? {};
         const intentRequest: Orders.RazorpayOrderCreateRequestBody = {
             amount: Math.round(parseInt(amount.toString())),
@@ -484,15 +556,25 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 session_id: input.context.session_id as string
             },
             payment: {
-                capture: this.options_.auto_capture ? "automatic" : "manual",
+                capture:
+                    this.options_.auto_capture ?? provider?.options.auto_capture
+                        ? "automatic"
+                        : "manual",
                 capture_options: {
-                    refund_speed: this.options_.refund_speed ?? "normal",
+                    refund_speed:
+                        this.options_.refund_speed ??
+                        provider?.options.refund_speed ??
+                        "normal",
                     automatic_expiry_period: Math.max(
-                        this.options_.automatic_expiry_period ?? 20,
+                        this.options_.automatic_expiry_period ??
+                            provider?.options.automatic_expiry_period ??
+                            20,
                         12
                     ),
                     manual_expiry_period: Math.max(
-                        this.options_.manual_expiry_period ?? 10,
+                        this.options_.manual_expiry_period ??
+                            provider?.options.manual_expiry_period ??
+                            10,
                         7200
                     )
                 }
@@ -500,11 +582,13 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             ...intentRequestData
         };
         let session_data;
-        const customerDetails = (cart as any).customer! as CustomerDTO;
+        const customerDetails =
+            input.context.customer ?? (extra as any).customer;
         try {
             const razorpayCustomer = await this.createOrUpdateCustomer(
                 intentRequest,
-                customerDetails
+                customerDetails,
+                extra as unknown as HttpTypes.StoreCart
             );
             try {
                 if (razorpayCustomer) {
@@ -516,7 +600,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 }
                 const phoneNumber =
                     customerDetails.phone ?? cart.billing_address?.phone;
-                if (phoneNumber) {
+                if (!phoneNumber) {
                     const e = new MedusaError(
                         MedusaError.Types.INVALID_DATA,
                         "no phone number",
@@ -852,10 +936,21 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
    */
 
     constructWebhookEvent(data, signature): boolean {
+        const provider = this.options_.providers?.find(
+            (p) => p.id == RazorpayBase.identifier
+        );
+
+        if (!provider && !this.options_.key_id) {
+            throw new MedusaError(
+                MedusaErrorTypes.INVALID_ARGUMENT,
+                "razorpay not configured",
+                MedusaErrorCodes.CART_INCOMPATIBLE_STATE
+            );
+        }
         return Razorpay.validateWebhookSignature(
             data,
             signature,
-            this.options_.webhook_secret
+            this.options_.webhook_secret ?? provider?.options.webhook_secret
         );
     }
 
