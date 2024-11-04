@@ -1044,7 +1044,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return {
                     action: PaymentActions.SUCCESSFUL,
                     data: {
-                        session_id: (paymentData.id as any)
+                        session_id: (paymentData.notes as any)
                             .session_id as string,
                         amount: toPay
                     }
@@ -1054,7 +1054,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return {
                     action: PaymentActions.AUTHORIZED,
                     data: {
-                        session_id: paymentData.id as string,
+                        session_id: (paymentData.notes as any)
+                            .session_id as string,
                         amount: toPay
                     }
                 };
@@ -1065,7 +1066,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return {
                     action: PaymentActions.FAILED,
                     data: {
-                        session_id: paymentData.id as string,
+                        session_id: (paymentData.notes as any)
+                            .session_id as string,
                         amount: toPay
                     }
                 };
