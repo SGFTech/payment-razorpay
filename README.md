@@ -145,7 +145,7 @@ export const RazorpayPaymentButton = ({
     const options: RazorpayOrderOptions = {
       callback_url: `${process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL}/razorpay/hooks`,
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY ?? '',
-      amount: session.amount*100,
+      amount: session.amount*100*100,
       order_id: orderData.id,
       currency: cart.currency_code.toUpperCase() as CurrencyCode,
       name: process.env.COMPANY_NAME ?? "your company name ",
@@ -166,6 +166,7 @@ export const RazorpayPaymentButton = ({
         },
         animation: true,
       },
+      
       handler: async () => {
         onPaymentCompleted()
       },
@@ -177,6 +178,7 @@ export const RazorpayPaymentButton = ({
       
       
     };
+    console.log(JSON.stringify(options.amount))
     //await waitForPaymentCompletion();
     
     

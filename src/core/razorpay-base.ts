@@ -1,5 +1,10 @@
 import { Logger } from "@medusajs/medusa";
-import { Options, RazorpayOptions, RazorpayProviderConfig } from "../types";
+import {
+    Options,
+    RazorpayOptions,
+    RazorpayProviderConfig,
+    WebhookEventData
+} from "../types";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { EOL } from "os";
@@ -1021,14 +1026,15 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
             return { action: PaymentActions.FAILED };
         }
-
+        const paymentData = (webhookData.data as unknown as WebhookEventData)
+            .payload?.payment?.entity;
         const event = data.event;
         let toPay = getAmountFromSmallestUnit(
-            Math.round(parseInt(`${webhookData.data.amount_received}`)),
-            (webhookData.data.currency as string).toUpperCase()
+            Math.round(parseInt(`${paymentData.amount}`)),
+            (paymentData.currency as string).toUpperCase()
         );
         toPay =
-            (webhookData.data.currency as string).toUpperCase() == "INR"
+            (paymentData.currency as string).toUpperCase() == "INR"
                 ? toPay * 100 * 100
                 : toPay;
         switch (event) {
@@ -1038,7 +1044,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return {
                     action: PaymentActions.SUCCESSFUL,
                     data: {
-                        session_id: (webhookData.data.metadata as any)
+                        session_id: (paymentData.id as any)
                             .session_id as string,
                         amount: toPay
                     }
@@ -1048,8 +1054,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return {
                     action: PaymentActions.AUTHORIZED,
                     data: {
-                        session_id: (webhookData.data.metadata as any)
-                            .session_id as string,
+                        session_id: paymentData.id as string,
                         amount: toPay
                     }
                 };
@@ -1060,8 +1065,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 return {
                     action: PaymentActions.FAILED,
                     data: {
-                        session_id: (webhookData.data.metadata as any)
-                            .session_id as string,
+                        session_id: paymentData.id as string,
                         amount: toPay
                     }
                 };
