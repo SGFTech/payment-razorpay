@@ -547,11 +547,13 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             );
         }
         const sessionNotes = extra?.notes ?? {};
+        let toPay = getAmountFromSmallestUnit(
+            Math.round(parseInt(amount.toString())),
+            currency_code.toUpperCase()
+        );
+        toPay = currency_code.toUpperCase() == "INR" ? toPay * 100 : toPay;
         const intentRequest: Orders.RazorpayOrderCreateRequestBody = {
-            amount: getAmountFromSmallestUnit(
-                Math.round(parseInt(amount.toString())),
-                currency_code.toUpperCase()
-            ),
+            amount: toPay,
             currency: currency_code.toUpperCase(),
             notes: {
                 ...sessionNotes,
@@ -690,13 +692,13 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         );
         const result = possibleCaptures?.map(async (payment) => {
             const { id, amount, currency } = payment;
-
+            const toPay = getAmountFromSmallestUnit(
+                Math.round(parseInt(amount.toString())),
+                currency.toUpperCase()
+            );
             const paymentIntent = await this.razorpay_.payments.capture(
                 id,
-                getAmountFromSmallestUnit(
-                    parseInt(`${amount}`),
-                    currency.toUpperCase()
-                ),
+                toPay,
                 currency as string
             );
             return paymentIntent;
@@ -1014,7 +1016,14 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         }
 
         const event = data.event;
-
+        let toPay = getAmountFromSmallestUnit(
+            Math.round(parseInt(`${webhookData.data.amount_received}`)),
+            (webhookData.data.currency as string).toUpperCase()
+        );
+        toPay =
+            (webhookData.data.currency as string).toUpperCase() == "INR"
+                ? toPay * 100
+                : toPay;
         switch (event) {
             // payment authorization is handled in checkout flow. webhook not needed
 
@@ -1024,10 +1033,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                     data: {
                         session_id: (webhookData.data.metadata as any)
                             .session_id as string,
-                        amount: getAmountFromSmallestUnit(
-                            webhookData.data.amount_received as string,
-                            webhookData.data.currency as string
-                        )
+                        amount: toPay
                     }
                 };
 
@@ -1037,10 +1043,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                     data: {
                         session_id: (webhookData.data.metadata as any)
                             .session_id as string,
-                        amount: getAmountFromSmallestUnit(
-                            webhookData.data.amount_received as string,
-                            webhookData.data.currency as string
-                        )
+                        amount: toPay
                     }
                 };
 
@@ -1052,10 +1055,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                     data: {
                         session_id: (webhookData.data.metadata as any)
                             .session_id as string,
-                        amount: getAmountFromSmallestUnit(
-                            webhookData.data.amount_received as string,
-                            webhookData.data.currency as string
-                        )
+                        amount: toPay
                     }
                 };
                 break;
