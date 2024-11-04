@@ -548,7 +548,10 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         }
         const sessionNotes = extra?.notes ?? {};
         const intentRequest: Orders.RazorpayOrderCreateRequestBody = {
-            amount: Math.round(parseInt(amount.toString())),
+            amount: getAmountFromSmallestUnit(
+                Math.round(parseInt(amount.toString())),
+                currency_code.toUpperCase()
+            ),
             currency: currency_code.toUpperCase(),
             notes: {
                 ...sessionNotes,
@@ -690,7 +693,10 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
             const paymentIntent = await this.razorpay_.payments.capture(
                 id,
-                amount as string,
+                getAmountFromSmallestUnit(
+                    parseInt(`${amount}`),
+                    currency.toUpperCase()
+                ),
                 currency as string
             );
             return paymentIntent;
@@ -849,14 +855,22 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         } else {
             if (!amount) {
                 return this.buildError(
-                    "amount  not supported",
-                    new Error("the phone number wasn't specified")
+                    "amount  not valid",
+                    new MedusaError(
+                        MedusaErrorTypes.INVALID_DATA,
+                        "amount  not valid",
+                        MedusaErrorCodes.CART_INCOMPATIBLE_STATE
+                    )
                 );
             }
             if (!currency_code) {
                 return this.buildError(
-                    "currency code not supported",
-                    new Error("the phone number wasn't specified")
+                    "currency code not known",
+                    new MedusaError(
+                        MedusaErrorTypes.INVALID_DATA,
+                        "currency code unknown",
+                        MedusaErrorCodes.CART_INCOMPATIBLE_STATE
+                    )
                 );
             }
 

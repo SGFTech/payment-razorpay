@@ -1,7 +1,7 @@
 import { BigNumberInput } from "@medusajs/framework/types";
 import { BigNumber, MathBN } from "@medusajs/framework/utils";
 
-function getCurrencyMultiplier(currency) {
+function getCurrencyMultiplier(currency): number {
     const currencyMultipliers = {
         0: [
             "BIF",
