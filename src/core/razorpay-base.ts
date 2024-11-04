@@ -551,7 +551,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             Math.round(parseInt(amount.toString())),
             currency_code.toUpperCase()
         );
-        toPay = currency_code.toUpperCase() == "INR" ? toPay * 100 : toPay;
+        toPay =
+            currency_code.toUpperCase() == "INR" ? toPay * 100 * 100 : toPay;
         const intentRequest: Orders.RazorpayOrderCreateRequestBody = {
             amount: toPay,
             currency: currency_code.toUpperCase(),
@@ -692,10 +693,13 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         );
         const result = possibleCaptures?.map(async (payment) => {
             const { id, amount, currency } = payment;
-            const toPay = getAmountFromSmallestUnit(
-                Math.round(parseInt(amount.toString())),
-                currency.toUpperCase()
-            );
+            const toPay =
+                getAmountFromSmallestUnit(
+                    Math.round(parseInt(amount.toString())),
+                    currency.toUpperCase()
+                ) *
+                100 *
+                100;
             const paymentIntent = await this.razorpay_.payments.capture(
                 id,
                 toPay,
@@ -1022,7 +1026,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         );
         toPay =
             (webhookData.data.currency as string).toUpperCase() == "INR"
-                ? toPay * 100
+                ? toPay * 100 * 100
                 : toPay;
         switch (event) {
             // payment authorization is handled in checkout flow. webhook not needed
