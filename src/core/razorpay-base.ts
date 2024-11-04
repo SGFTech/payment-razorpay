@@ -729,7 +729,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
     async refundPayment(
         paymentSessionData: Record<string, unknown>,
-        refundAmount: number
+        refundAmount: any
     ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
         const id = (paymentSessionData as unknown as Orders.RazorpayOrder)
             .id as string;
@@ -743,7 +743,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         //     )
         // );
         const payment_id = paymentList.items?.find((p) => {
-            parseInt(`${p.amount}`) >= refundAmount &&
+            parseInt(`${p.amount}`) * 100 >= parseInt(refundAmount.value) &&
                 (p.status == "authorized" || p.status == "captured");
         })?.id;
 
@@ -1026,14 +1026,16 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         const paymentData = (webhookData.data as unknown as WebhookEventData)
             .payload?.payment?.entity;
         const event = data.event;
-        let toPay = getAmountFromSmallestUnit(
-            Math.round(parseInt(`${paymentData.amount}`)),
-            (paymentData.currency as string).toUpperCase()
-        );
-        toPay =
-            (paymentData.currency as string).toUpperCase() == "INR"
-                ? toPay * 100 * 100
-                : toPay;
+        // const paid = getAmountFromSmallestUnit(
+        //     Math.round(parseInt(`${paymentData.amount}`)),
+        //     (paymentData.currency as string).toUpperCase()
+        // );
+        const order = await this.razorpay_.orders.fetch(paymentData.order_id);
+        const outstanding = order.amount_paid;
+        // toPay =
+        //     (paymentData.currency as string).toUpperCase() == "INR"
+        //         ? toPay * 100 * 100
+        //         : toPay;
         switch (event) {
             // payment authorization is handled in checkout flow. webhook not needed
 
@@ -1043,7 +1045,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                     data: {
                         session_id: (paymentData.notes as any)
                             .session_id as string,
-                        amount: toPay
+                        amount: outstanding
                     }
                 };
 
@@ -1053,7 +1055,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                     data: {
                         session_id: (paymentData.notes as any)
                             .session_id as string,
-                        amount: toPay
+                        amount: outstanding
                     }
                 };
 
@@ -1065,7 +1067,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                     data: {
                         session_id: (paymentData.notes as any)
                             .session_id as string,
-                        amount: toPay
+                        amount: outstanding
                     }
                 };
                 break;
