@@ -743,13 +743,14 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         //     )
         // );
         const payment_id = paymentList.items?.find((p) => {
-            parseInt(`${p.amount}`) * 100 >= parseInt(refundAmount.value) &&
-                (p.status == "authorized" || p.status == "captured");
+            return (
+                parseInt(`${p.amount}`) >= parseInt(refundAmount.value) * 100 &&
+                (p.status == "authorized" || p.status == "captured")
+            );
         })?.id;
-
         if (payment_id) {
-            const refundRequest: Refunds.RazorpayRefundCreateRequestBody = {
-                amount: refundAmount
+            const refundRequest = {
+                amount: parseInt(refundAmount) * 100
             };
             try {
                 const refundSession = await this.razorpay_.payments.refund(
