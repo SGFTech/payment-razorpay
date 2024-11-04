@@ -564,7 +564,8 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             notes: {
                 ...sessionNotes,
                 resource_id: (extra?.resource_id as string) ?? "",
-                session_id: input.context.session_id as string
+                session_id: input.context.session_id as string,
+                cart_id: extra?.id as string
             },
             payment: {
                 capture:
@@ -656,20 +657,18 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
               data: PaymentProviderSessionResponse;
           }
     > {
-        let session_data;
-        if (!context?.cart_id) {
-            throw new MedusaError(
-                MedusaError.Types.INVALID_DATA,
-                "no cart",
-                MedusaError.Codes.CART_INCOMPATIBLE_STATE
-            );
-        }
+        // if (!context?.cart_id) {
+        //     throw new MedusaError(
+        //         MedusaError.Types.INVALID_DATA,
+        //         "no cart",
+        //         MedusaError.Codes.CART_INCOMPATIBLE_STATE
+        //     );
+        // }
 
         const status = await this.getPaymentStatus(paymentSessionData);
         return {
             data: {
-                ...paymentSessionData,
-                ...session_data
+                ...paymentSessionData
             } as PaymentProviderSessionResponse,
             status
         };
