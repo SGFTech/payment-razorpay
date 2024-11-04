@@ -701,9 +701,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
                 getAmountFromSmallestUnit(
                     Math.round(parseInt(amount.toString())),
                     currency.toUpperCase()
-                ) *
-                100 *
-                100;
+                ) * 100;
             const paymentIntent = await this.razorpay_.payments.capture(
                 id,
                 toPay,
@@ -735,18 +733,18 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
         const id = (paymentSessionData as unknown as Orders.RazorpayOrder)
             .id as string;
-        const paymentIntent = await this.razorpay_.orders.fetch(id);
-        const paymentList = paymentIntent.payments ?? {};
 
-        const paymentIds = Object.keys(paymentList);
-        const payments = await Promise.all(
-            paymentIds.map(
-                async (paymentId) =>
-                    await this.razorpay_.payments.fetch(paymentId)
-            )
-        );
-        const payment_id = payments.find((p) => {
-            parseInt(p.amount.toString()) >= refundAmount;
+        const paymentList = await this.razorpay_.orders.fetchPayments(id);
+
+        // const payments = await Promise.all(
+        //     paymentList.items?.map(
+        //         async (payment) =>
+        //             await this.razorpay_.payments.fetch(payment.id)
+        //     )
+        // );
+        const payment_id = paymentList.items?.find((p) => {
+            parseInt(`${p.amount}`) >= refundAmount &&
+                (p.status == "authorized" || p.status == "captured");
         })?.id;
 
         if (payment_id) {
