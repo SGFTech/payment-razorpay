@@ -51,17 +51,11 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
     logger: Logger;
     container_: any;
 
-    // customerModuleService: CustomerModuleService;
-    // cartService: CartModuleService;
-
     protected constructor(container: any, options) {
         super(container, options);
 
         this.options_ = options;
         this.logger = container.logger as Logger;
-
-        // this.cartService = container.cartService;
-        // this.customerModuleService = container.customerModuleService as customerModuleService;
 
         this.container_ = container;
         this.options_ = options;
@@ -179,19 +173,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             return totalAuthorised == paymentIntent.amount
                 ? PaymentSessionStatus.AUTHORIZED
                 : PaymentSessionStatus.REQUIRES_MORE;
-        } /*
-    if (paymentIntent.amount_due != 0) {
-      return PaymentSessionStatus.REQUIRES_MORE;
-    }
-
-    if (paymentIntent.amount_paid == paymentIntent.amount) {
-      return PaymentSessionStatus.AUTHORIZED;
-    }
-    return PaymentSessionStatus.PENDING;*/
-
-        /**
-         * ToFix part payments
-         */
+        }
     }
 
     async getPaymentStatus(
@@ -260,24 +242,6 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             }
         });
         const result = x.result.customer;
-
-        // result = await this.customerModuleService.updateCustomers(customer.id, {
-        //   metadata: {
-        //     ...metadata,
-        //     razorpay,
-        //   },
-        // });
-        // ?else {
-        //     const x = await updateCustomersWorkflow(this.container_).run({
-        //         input: {
-        //             selector: { id: customer.id },
-        //             update: {
-        //                 metadata: { razorpay }
-        //             }
-        //         }
-        //     });
-        //     result = x.result[0];
-        // }
 
         return result;
     }
@@ -657,14 +621,6 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
               data: PaymentProviderSessionResponse;
           }
     > {
-        // if (!context?.cart_id) {
-        //     throw new MedusaError(
-        //         MedusaError.Types.INVALID_DATA,
-        //         "no cart",
-        //         MedusaError.Codes.CART_INCOMPATIBLE_STATE
-        //     );
-        // }
-
         const status = await this.getPaymentStatus(paymentSessionData);
         return {
             data: {
@@ -736,12 +692,6 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
 
         const paymentList = await this.razorpay_.orders.fetchPayments(id);
 
-        // const payments = await Promise.all(
-        //     paymentList.items?.map(
-        //         async (payment) =>
-        //             await this.razorpay_.payments.fetch(payment.id)
-        //     )
-        // );
         const payment_id = paymentList.items?.find((p) => {
             return (
                 parseInt(`${p.amount}`) >= parseInt(refundAmount.value) * 100 &&
@@ -1027,19 +977,14 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         const paymentData = (webhookData.data as unknown as WebhookEventData)
             .payload?.payment?.entity;
         const event = data.event;
-        // const paid = getAmountFromSmallestUnit(
-        //     Math.round(parseInt(`${paymentData.amount}`)),
-        //     (paymentData.currency as string).toUpperCase()
-        // );
+
         const order = await this.razorpay_.orders.fetch(paymentData.order_id);
+        /** sometimes this even fires before the order is updated in the remote system */
         const outstanding = getAmountFromSmallestUnit(
             order.amount_paid == 0 ? paymentData.amount : order.amount_paid,
             paymentData.currency.toUpperCase()
         );
-        // toPay =
-        //     (paymentData.currency as string).toUpperCase() == "INR"
-        //         ? toPay * 100 * 100
-        //         : toPay;
+
         switch (event) {
             // payment authorization is handled in checkout flow. webhook not needed
 
@@ -1079,42 +1024,6 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
             default:
                 return { action: PaymentActions.NOT_SUPPORTED };
         }
-
-        // const event = this.constructWebhookEvent(webhookData)
-        // const intent = event.data.object as Stripe.PaymentIntent
-
-        // const { currency } = intent
-        // switch (event.type) {
-        //   case "payment_intent.amount_capturable_updated":
-        //     return {
-        //       action: PaymentActions.AUTHORIZED,
-        //       data: {
-        //         session_id: intent.metadata.session_id,
-        //         amount: getAmountFromSmallestUnit(
-        //           intent.amount_capturable,
-        //           currency
-        //         ), // NOTE: revisit when implementing multicapture
-        //       },
-        //     }
-        //   case "payment_intent.succeeded":
-        //     return {
-        //       action: PaymentActions.SUCCESSFUL,
-        //       data: {
-        //         session_id: intent.metadata.session_id,
-        //         amount: getAmountFromSmallestUnit(intent.amount_received, currency),
-        //       },
-        //     }
-        //   case "payment_intent.payment_failed":
-        //     return {
-        //       action: PaymentActions.FAILED,
-        //       data: {
-        //         session_id: intent.metadata.session_id,
-        //         amount: getAmountFromSmallestUnit(intent.amount, currency),
-        //       },
-        //     }
-        //   default:
-        //     return { action: PaymentActions.NOT_SUPPORTED }
-        // }
     }
 }
 
