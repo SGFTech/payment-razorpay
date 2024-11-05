@@ -750,7 +750,7 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         })?.id;
         if (payment_id) {
             const refundRequest = {
-                amount: parseInt(refundAmount) * 100
+                amount: parseInt(refundAmount.value) * 100
             };
             try {
                 const refundSession = await this.razorpay_.payments.refund(
@@ -1032,7 +1032,10 @@ abstract class RazorpayBase extends AbstractPaymentProvider {
         //     (paymentData.currency as string).toUpperCase()
         // );
         const order = await this.razorpay_.orders.fetch(paymentData.order_id);
-        const outstanding = order.amount_paid;
+        const outstanding = getAmountFromSmallestUnit(
+            order.amount_paid == 0 ? paymentData.amount : order.amount_paid,
+            paymentData.currency.toUpperCase()
+        );
         // toPay =
         //     (paymentData.currency as string).toUpperCase() == "INR"
         //         ? toPay * 100 * 100
